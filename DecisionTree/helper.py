@@ -1,7 +1,13 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+from enum import Enum
 
+class SplitCriteria(Enum):
+    INFOGAINRATIO = 1
+    INFOGAIN = 2
+    GINIINDEX = 3
+    MAXOPERATOR = 4
 
 def process():
     # 读取数据
