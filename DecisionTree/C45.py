@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+from graphviz import Digraph
 
 class Node:
     def __init__(self):
@@ -149,3 +150,25 @@ class DecisionTree:
             if pred == y:
                 correct += 1
         return correct / len(Y)
+
+       # 可视化决策树
+    def visualize(self, filename='decision_tree', format='png'):
+        dot = Digraph(comment='Decision Tree')
+        self._add_nodes(dot, self.root)
+        dot.render(filename, format=format, cleanup=True, view=True)
+
+    def _add_nodes(self, dot, node, parent=None, edge_label=None):
+        if node.split is None:
+            # 叶结点
+            node_id = str(id(node))
+            dot.node(node_id, label=str(node.feat))
+            if parent is not None:
+                dot.edge(str(id(parent)), node_id, label=edge_label)
+        else:
+            # 内部结点
+            node_id = str(id(node))
+            dot.node(node_id, label=f'{self.feat_names[node.feat]} <= {node.split}')
+            if parent is not None:
+                dot.edge(str(id(parent)), node_id, label=edge_label)
+            self._add_nodes(dot, node.child[0], node, edge_label='True')
+            self._add_nodes(dot, node.child[1], node, edge_label='False')
