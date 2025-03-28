@@ -16,11 +16,12 @@ def process():
     #print(data.info())
     #print(data[:5])
 
-    # 删去编号、姓名、船票3列
-    data.drop(columns=['PassengerId', 'Name', 'Ticket'], inplace=True)
+    # 删去编号、姓名、船票, Cabin 4列
+    data.drop(columns=['PassengerId', 'Name', 'Ticket', 'Cabin', 'Age', 'Fare'], inplace=True)
 
     feat_ranges = {}
-    cont_feat = ['Age', 'Fare'] # 连续特征
+    #cont_feat = ['Age', 'Fare'] # 连续特征
+    cont_feat = [] # 连续特征
     bins = 10 # 分类点数
 
     for feat in cont_feat:
@@ -33,7 +34,8 @@ def process():
         #    print(f'{spt:.4f}')
 
     # 只有有限取值的离散特征
-    cat_feat = ['Sex', 'Pclass', 'SibSp', 'Parch', 'Cabin', 'Embarked'] 
+    #cat_feat = ['Sex', 'Pclass', 'SibSp', 'Parch', 'Cabin', 'Embarked'] 
+    cat_feat = ['Sex', 'Pclass', 'SibSp', 'Parch', 'Embarked'] 
     for feat in cat_feat:
         data[feat] = data[feat].astype('category') # 数据格式转为分类格式
         #print(f'{feat}：{data[feat].cat.categories}') # 查看类别
