@@ -1,6 +1,6 @@
 from helper_dp import process
 import numpy as np
-from SuLQID3 import SulQID3
+from DiffPID3 import DiffPID3
 
 if __name__ == '__main__':
 
@@ -13,10 +13,12 @@ if __name__ == '__main__':
     #    print(key, len(value))
 
 
-    #DPDT = SulQID3(train_x, train_y, feat_names, 5, 1)
-    DPDT = SulQID3(train_x, train_y, feat_names, 5, 3.25)
-    #DPDT = SulQID3(train_x, train_y, feat_names, 5, 0.25)
-    #DPDT = SulQID3(train_x, train_y, feat_names, 5, 5.25)
+    #DPDT = DiffPID3(train_x, train_y, feat_names, 5, 1)
+    DPDT = DiffPID3(train_x, train_y, feat_names, 5, 3.25)
+    #DPDT = DiffPID3(train_x, train_y, feat_names, 5, 7.25)
+    #DPDT = DiffPID3(train_x, train_y, feat_names, 5, 5.25)
+    #DPDT = DiffPID3(train_x, train_y, feat_names, 5, 1)
+    #DPDT = DiffPID3(train_x, train_y, feat_names, 5, 0.25)
     print('叶结点数量：', DPDT.Leaf)
 
     # 计算在训练集和测试集上的准确率

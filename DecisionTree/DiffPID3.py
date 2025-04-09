@@ -17,8 +17,8 @@ class Node:
         self.label = None
 
 # From paper of Arik Friedman <<Data Mining with Differential Privacy>>
-class SulQID3:
-    # line 2 in Algorithm SuLQ-based ID3
+class DiffPID3:
+    # line 2 in Algorithm 2 Differential private ID3
     # Y for C, feat_names for A
     def __init__(self, X, Y, feat_names, d, B):
         self.root = Node()
@@ -29,11 +29,11 @@ class SulQID3:
         self.e = self.B / (2*(d + 1))
         self.Leaf = 0 # 记录叶结点个数
 
-        self.Build_Sulq_ID3(self.root, self.T, self.d, self.e, self.feat_names.tolist())
+        self.Build_DiffPID3(self.root, self.T, self.d, self.e, self.feat_names.tolist())
 
     def get_max_A(self, X):
         # 遍历每一列
-        max_A_len = 0
+        max_A_len = -1
         for i in range(X.shape[1]):
             # 获取当前列
             column = X[:, i]
@@ -54,7 +54,7 @@ class SulQID3:
         return noise
     
     def get_heuristic_parameters(self, Nt, t, len_C, e):
-        # line 9 in Algorithm SuLQ-based ID3
+        # line 9 in Algorithm Differential Private ID3
         if Nt / t*len_C < (2 ** 0.5) / e:
             return True
         else:
@@ -97,49 +97,73 @@ class SulQID3:
 
         return split_arrays 
     
-    def partiton_A_C(self, T):
-        # 存储切分结果的字典
-        split_results = {}
 
-        # subtract column col of label 
-        for col_idx in range(T.shape[1] - 1):
-            # 获取该列的唯一取值
-            unique_values = np.unique(T[:, col_idx])
-            # 获取标签列的唯一取值
-            unique_labels = np.unique(T[:, -1])
-            # 为该列创建一个子字典来存储切分结果
-            split_results[col_idx] = {}
-            for value in unique_values:
-                split_results[col_idx][value] = {}
-                for label in unique_labels:
-                    # 根据该列的取值和标签进行切分
-                    mask_attr = T[:, col_idx] == value
-                    mask_label = T[:, -1] == label
-                    mask = mask_attr & mask_label
-                    split_results[col_idx][value][label] = T[mask]
+    # 工具函数，计算 a * log a
+    def aloga(self, a):
+        return a * np.log2(a + 1e-8)
 
-        # 打印切分结果的示例
+    # 计算某个子数据集的熵
+    # Calculate entropy by category
+    def entropy(self, Y):
+        cnt = np.unique(Y, return_counts=True)[1] # 统计每个类别出现的次数
+        N = len(Y)
+        ent = -np.sum([self.aloga(Ni / N) for Ni in cnt])
+        return ent
+
+    # 计算用feat <= val划分数据集的信息增益
+    def info_gain(self, X, Y, feat):
+        # 划分前的熵
+        N = len(Y)
+        if N == 0:
+            return 0
+        HX = self.entropy(Y)
+        unique_values = np.unique(X[:, feat])
+
+        HXY = 0 # H(X|Y)
+        for val in unique_values:
+            # 分别计算every val of H(X|Y)
+            Y_p = Y[X[:, feat] == val]
+            HXY += len(Y_p) / len(Y) * self.entropy(Y_p)
+
+        return (HX - HXY)*100
+
+    def exponential_mechanism(self, T, attributes, epsilon, sensitivity=1):
         """
-        for col_idx in split_results:
-            for value in split_results[col_idx]:
-                for label in split_results[col_idx][value]:
-                    print(f"第 {col_idx} 列，取值为 {value}，标签为 {label} 的子数组形状: {split_results[col_idx][value][label].shape}")
+        实现指数机制，根据质量得分选择属性
+        :param attributes: 候选属性列表
+        :param quality_scores: 字典，属性到其质量得分的映射
+        :param epsilon: 隐私预算
+        :param sensitivity: 质量函数的敏感度
         """
-        return split_results
+        X = T[:, :-1]
+        Y = T[:, -1]
+        scores = [self.info_gain(X, Y, attr_index) for attr_index in range(len(attributes))]
+    
+        # 处理可能的负得分（根据质量函数调整）
+        min_score = min(scores)
+        shifted_scores = [s - min_score for s in scores]  # 确保所有分数非负
+    
+        # 计算指数值
+        exponents = [np.exp(epsilon * score / (2 * sensitivity)) for score in shifted_scores]
+    
+        probabilities = exponents / np.linalg.norm(exponents, ord=1)
+        chosen_index = np.random.choice(len(attributes), p=probabilities)
+
+        return chosen_index
 
     # 用ID3算法递归分裂结点，构造决策树
-    def Build_Sulq_ID3(self, node, T, d, e, feat_names):
+    def Build_DiffPID3(self, node, T, d, e, feat_names):
 
         t = self.get_max_A(T[:, :-1])
         Nt =  max(T.shape[0] + self.get_Noisy(e), 0)
 
-        if t == 0 or d == 0 or self.get_heuristic_parameters(Nt, t, len(np.unique(T[:, -1:])), e):
-            # line 10 in Algorithm SuLQ-based ID3
+        if t == -1 or d == 0 or self.get_heuristic_parameters(Nt, t, len(np.unique(T[:, -1:])), e):
+            # line 9 in Algorithm Differential Private ID3
             new_split_Y = self.partition_C(T[:, -1:])
 
             new_class = -1
             new_class_count = 0
-            # line 11, 12 in Algorithm SuLQ-based ID3
+            # line 10, 11 in Algorithm Differential Private ID3
             for value, sub_arr in new_split_Y.items():
                 new_count = max(len(sub_arr) + self.get_Noisy(e), 0)
                 if new_count >= new_class_count:
@@ -150,34 +174,10 @@ class SulQID3:
             self.Leaf += 1
             return
         
-        # line 14, 15, 16 in Algorithm SuLQ-based ID3
-        new_split_A_Y = self.partiton_A_C(T)
-        NUM_A = T.shape[1] - 1
-        Value_A = -np.inf 
-        New_split_A = -1 
-        for col_idx in new_split_A_Y:
-            current_value_A = 0 
-            for value in new_split_A_Y[col_idx]:
-                N_j = 0
-                N_j_c_Noise = []
-                for label in new_split_A_Y[col_idx][value]:
-                    N_j_c = len(new_split_A_Y[col_idx][value][label])
-                    N_j += N_j_c
-                    # line 18 in Algorithm SuLQ-based ID3
-                    N_j_c_Noise.append(max(N_j_c + self.get_Noisy(e / (2*NUM_A)), 0))
-                    #print(f"第 {col_idx} 列，取值为 {value}，标签为 {label} 的子数组形状: {new_split_A_Y[col_idx][value][label].shape}")
-                # line 17 in Algorithm SuLQ-based ID3
-                N_j = max(N_j + self.get_Noisy(e / (2*NUM_A)), 0)
-                for n_j_c in N_j_c_Noise:
-                    if n_j_c <= 0 or N_j <= 0:
-                        continue
-                    # line 19 in Algorithm SuLQ-based ID3
-                    current_value_A += n_j_c *  math.log2(n_j_c / N_j) 
-            if current_value_A >= Value_A:
-                Value_A = current_value_A
-                New_split_A = col_idx
+        # line 14 in Algorithm Differential Private ID3
+        New_split_A = self.exponential_mechanism(T, feat_names, e)
 
-        # line 22 in Algorithm SuLQ-based ID3
+        # line 15 in Algorithm Differential Private ID3
         if New_split_A != -1:
             New_T_dict = self.partition_A(T, New_split_A)
             index = 0
@@ -188,7 +188,7 @@ class SulQID3:
             for value, sub_arr in New_T_dict.items():
                 #print(f"当第 {target_col_index} 列取值为 {value} 时，切分得到的子数组形状为: {sub_arr.shape}")
                 new_node = Node()
-                self.Build_Sulq_ID3(new_node, np.delete(sub_arr, New_split_A, axis=1), d-1, e, new_feat_names)
+                self.Build_DiffPID3(new_node, np.delete(sub_arr, New_split_A, axis=1), d-1, e, new_feat_names)
                 node.split[value] = index 
                 node.child.append(new_node)
                 index += 1
@@ -217,7 +217,7 @@ class SulQID3:
                 correct += 1
         return correct / len(Y)
 
-    def visualize_tree(self, filename='dp_decision_tree_sul'):
+    def visualize_tree(self, filename='dp_decision_tree_id3'):
         dot = Digraph(comment='Decision Tree')
         self.add_nodes_edges(dot, self.root)
         dot.render(filename, format='png', cleanup=True, view=True)
