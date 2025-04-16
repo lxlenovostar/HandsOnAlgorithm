@@ -132,7 +132,6 @@ class DiffPID3:
         """
         实现指数机制，根据质量得分选择属性
         :param attributes: 候选属性列表
-        :param quality_scores: 字典，属性到其质量得分的映射
         :param epsilon: 隐私预算
         :param sensitivity: 质量函数的敏感度
         """
