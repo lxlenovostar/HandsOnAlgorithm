@@ -11,7 +11,9 @@ class SplitCriteria(Enum):
 
 def process():
     # 读取数据
-    data = pd.read_csv('data/titanic/train.csv')
+    #data = pd.read_csv('data/titanic/train.csv')
+    #data = pd.read_csv('data/titanic/train_20.csv')
+    data = pd.read_csv('data/titanic/train_100.csv')
     # 查看数据集信息和前5行具体内容，其中NaN代表数据缺失
     #print(data.info())
     #print(data[:5])

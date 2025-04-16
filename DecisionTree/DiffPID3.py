@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-import math
+import time 
 from graphviz import Digraph
 
 
@@ -28,7 +28,8 @@ class DiffPID3:
         self.B = B # differential privacy budget
         self.e = self.B / (2*(d + 1))
         self.Leaf = 0 # 记录叶结点个数
-
+        
+        np.random.seed(int(time.time()))
         self.Build_DiffPID3(self.root, self.T, self.d, self.e, self.feat_names.tolist())
 
     def get_max_A(self, X):

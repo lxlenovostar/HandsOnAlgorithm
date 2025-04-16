@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import math
+import time
 from graphviz import Digraph
 
 
@@ -29,6 +30,7 @@ class SulQID3:
         self.e = self.B / (2*(d + 1))
         self.Leaf = 0 # 记录叶结点个数
 
+        np.random.seed(int(time.time()))
         self.Build_Sulq_ID3(self.root, self.T, self.d, self.e, self.feat_names.tolist())
 
     def get_max_A(self, X):
@@ -93,7 +95,7 @@ class SulQID3:
 
         # 打印切分结果
         #for value, sub_arr in split_arrays.items():
-            #print(f"当第 {target_col_index} 列取值为 {value} 时，切分得到的子数组形状为: {sub_arr.shape}")
+        #    print(f"列取值为 {value} 时，切分得到的子数组形状为: {sub_arr.shape}")
 
         return split_arrays 
     
@@ -173,6 +175,7 @@ class SulQID3:
                         continue
                     # line 19 in Algorithm SuLQ-based ID3
                     current_value_A += n_j_c *  math.log2(n_j_c / N_j) 
+
             if current_value_A >= Value_A:
                 Value_A = current_value_A
                 New_split_A = col_idx
