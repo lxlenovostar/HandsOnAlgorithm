@@ -27,6 +27,7 @@ class DiffPID3:
         feat_names = inputs[2]
         d = inputs[3]
         B = inputs[4]
+        tree_id = inputs[5]
 
         self.root = Node()
         self.T = np.hstack((X, Y.reshape(-1, 1)))
@@ -36,8 +37,10 @@ class DiffPID3:
         self.e = self.B / (2*(d + 1))
         self.Leaf = 0 # 记录叶结点个数
         
-        np.random.seed(int(time.time()))
+        np.random.seed(int(time.time()) + tree_id)
         self.Build_DiffPID3(self.root, self.T, self.d, self.e, self.feat_names.tolist())
+
+        print('number of tree: ', self.Leaf)
 
     def get_max_A(self, X):
         # 遍历每一列

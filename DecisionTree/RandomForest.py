@@ -1,4 +1,6 @@
 import pandas as pd
+import numpy as np
+from collections import Counter
 import threading
 import queue
 from DiffPM import DiffPID3 
@@ -22,34 +24,57 @@ class RandomForest(object):
         for i in range(0, number_trees):
             thr = threading.Thread(target = lambda q, 
                     arg : q.put(DiffPID3(arg)), 
-                    args = (que, [X, Y, feat_names, max_depth, self.e_per_tree]))
+                    args = (que, [X, Y, feat_names, max_depth, self.e_per_tree, i]))
             thr.start()
             thr.join()
         
         while len(self.trees) < number_trees: 
             # wait until all trees are build and trained 
             self.trees.append(que.get())
+    
+    def predict(self, x, feat_names):
+        """
+        对输入样本进行随机森林预测
+        参数:
+            x: one sample
+        返回:
+            predictions: 预测结果数组 (n_samples,)
+        """
+        # 收集所有树的预测结果
+        tree_predictions = []
+        for tree in self.trees:
+            # 调用每棵树的预测方法（需确保DiffPID3.predict支持单样本输入）
+            pred = tree.predict(x, feat_names)
+            tree_predictions.append(pred)
+        
+        # 多数投票决策
+        pred_counter = Counter(tree_predictions)
+        return pred_counter.most_common(1)[0][0]
+    
+    def accuracy(self, X, Y, feat_names):
+        """
+        计算随机森林在测试集上的准确率
+        参数:
+            X: 测试集特征矩阵 (n_samples, n_features)
+            Y: 测试集真实标签 (n_samples,)
+        返回:
+            accuracy: 模型准确率 (0-1之间)
+        """
 
-    # This function accepts a pandas DataFrame object 
-    # with the instances for predictions
-    # and returns a list with the estimated classes.
-    def predict(self, df):
-        predictions = list()
-        for (idx, row) in df.iterrows():
-            # the variable vote collects the votes of all trees.
-            # This can easily adapt to parallel execution.
-            vote = 0
-            for tree in self.trees:
-                vote += tree.predict(row) # prediction for a specific
-                                          # instance for each tree
-            # Compute prediction
-            # If vote is greater than the halt number of trees,
-            # more of the half trees voted for class 1. 
-            # Otherwise the prediction is 0.
-            # It is also possible to use a weighted majority vote
-            # or use the posterior probability over all known instances
-            if vote > len(self.trees) / 2:
-                predictions.append(1)
-            else:
-                predictions.append(0)
-        return pd.Series(predictions, dtype='int64')
+        correct = 0
+        total = len(Y)
+        
+        # 遍历每个样本
+        for i in range(total):
+            # 获取单个样本
+            x = X[i]
+            true_label = Y[i]
+            
+            # 预测单个样本
+            pred = self.predict(x, feat_names)
+            
+            # 检查预测是否正确
+            if pred == true_label:
+                correct += 1
+        
+        return correct / total
