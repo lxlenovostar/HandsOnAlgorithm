@@ -2,7 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import time 
+import random
 from graphviz import Digraph
+from typing import List, Union
 
 
 class Node:
@@ -16,8 +18,7 @@ class Node:
         # 叶结点的label表示该结点对应的分类结果
         self.label = None
 
-# From paper of Arik Friedman <<Data Mining with Differential Privacy>>
-class DiffPID3:
+class DiffPM:
     # line 2 in Algorithm 2 Differential private ID3
     # Y for C, feat_names for A
     def __init__(self, inputs):
@@ -40,7 +41,7 @@ class DiffPID3:
         np.random.seed(int(time.time()) + tree_id)
         self.Build_DiffPID3(self.root, self.T, self.d, self.e, self.feat_names.tolist())
 
-        print('number of tree: ', self.Leaf)
+        print('number of tree leaf: ', self.Leaf)
 
     def get_max_A(self, X):
         # 遍历每一列
@@ -161,13 +162,23 @@ class DiffPID3:
 
         return chosen_index
 
+    def select_random_features(self, feat_names):
+        """
+        步骤8实现：从属性集中随机选择f个属性
+        """
+        effective_random = int(np.sqrt(len(feat_names)))
+        
+        return random.sample(feat_names, effective_random)
+
     # 用ID3算法递归分裂结点，构造决策树
     def Build_DiffPID3(self, node, T, d, e, feat_names):
 
         t = self.get_max_A(T[:, :-1])
         Nt =  max(T.shape[0] + self.get_Noisy(e), 0)
 
-        if t == -1 or d == 0 or self.get_heuristic_parameters(Nt, t, len(np.unique(T[:, -1:])), e):
+        # step 7 
+        #if t == -1 or d == 0 or self.get_heuristic_parameters(Nt, t, len(np.unique(T[:, -1:])), e):
+        if t == -1 or d == 0 :
             # line 9 in Algorithm Differential Private ID3
             new_split_Y = self.partition_C(T[:, -1:])
 
@@ -184,9 +195,24 @@ class DiffPID3:
             self.Leaf += 1
             return
         
-        # line 14 in Algorithm Differential Private ID3
-        New_split_A = self.exponential_mechanism(T, feat_names, e)
+        # TODO we support step 10 later.
 
+        # step 8
+        random_candidate_feat_names = self.select_random_features(feat_names)
+        print(f"随机选择属性: {random_candidate_feat_names}")
+
+        # step 11 
+        random_New_split_A = self.exponential_mechanism(T, random_candidate_feat_names, e)
+        
+        New_split_A = -1
+        cursor = 0
+        while cursor < len(feat_names):
+            if random_candidate_feat_names[random_New_split_A] == feat_names[cursor]:
+                New_split_A = cursor
+                break
+            cursor += 1
+
+        # TODO 连续属性：强制二元分裂  ​离散属性：多元分裂 , learn by <<DRPF: A Differential Privacy Proection Random Forest>>
         # line 15 in Algorithm Differential Private ID3
         if New_split_A != -1:
             New_T_dict = self.partition_A(T, New_split_A)

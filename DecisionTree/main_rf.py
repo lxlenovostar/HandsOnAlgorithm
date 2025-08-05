@@ -14,7 +14,8 @@ if __name__ == '__main__':
     #    print(key, len(value))
 
 
-    RF = RandomForest(train_x, train_y, feat_names, 5, 3.25, 5)
+    #RF = RandomForest(train_x, train_y, feat_names, 5, 3.25, 1)
+    RF = RandomForest(train_x, train_y, feat_names, 5, 3.25, 10)
     #DPDT = DiffPID3(train_x, train_y, feat_names, 5, 0.75)
     #DPDT = DiffPID3(train_x, train_y, feat_names, 5, 0.25)
     #DPDT = DiffPID3(train_x, train_y, feat_names, 5, 0.5)

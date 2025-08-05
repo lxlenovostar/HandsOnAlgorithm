@@ -3,7 +3,8 @@ import numpy as np
 from collections import Counter
 import threading
 import queue
-from DiffPM import DiffPID3 
+from DiffPM import DiffPM
+from sklearn.utils import resample
 
 # This class represents an ensemble structe of private random decision trees.
 # It allows the parallel creation and training of the contained trees.
@@ -19,12 +20,21 @@ class RandomForest(object):
         self.trees = list() #list of containing trees
         # the more trees are used, the higher the noise
         self.e_per_tree = e / number_trees
+
+        # 第3步实现：Bootstrap采样
+        bootstrap_samples = []
+        for i in range(number_trees):
+            # 有放回随机采样，保持原始数据集大小
+            X_i, Y_i = resample(X, Y, replace=True, n_samples=len(X))
+            bootstrap_samples.append((X_i, Y_i))
+
         # Queue for the output of the parallel threads
         que = queue.Queue() 
         for i in range(0, number_trees):
+            X_i, Y_i = bootstrap_samples[i]
             thr = threading.Thread(target = lambda q, 
-                    arg : q.put(DiffPID3(arg)), 
-                    args = (que, [X, Y, feat_names, max_depth, self.e_per_tree, i]))
+                    arg : q.put(DiffPM(arg)), 
+                    args = (que, [X_i, Y_i, feat_names, max_depth, self.e_per_tree, i]))
             thr.start()
             thr.join()
         
