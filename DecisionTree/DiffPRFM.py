@@ -18,7 +18,7 @@ class Node:
         # 叶结点的label表示该结点对应的分类结果
         self.label = None
 
-class DiffPM:
+class DiffPRFM:
     # line 2 in Algorithm 2 Differential private ID3
     # Y for C, feat_names for A
     def __init__(self, inputs):

@@ -3,7 +3,7 @@ import numpy as np
 from collections import Counter
 import threading
 import queue
-from DiffPM import DiffPM
+from DiffPRFM import DiffPRFM
 from sklearn.utils import resample
 
 # This class represents an ensemble structe of private random decision trees.
@@ -33,7 +33,7 @@ class RandomForest(object):
         for i in range(0, number_trees):
             X_i, Y_i = bootstrap_samples[i]
             thr = threading.Thread(target = lambda q, 
-                    arg : q.put(DiffPM(arg)), 
+                    arg : q.put(DiffPRFM(arg)), 
                     args = (que, [X_i, Y_i, feat_names, max_depth, self.e_per_tree, i]))
             thr.start()
             thr.join()
