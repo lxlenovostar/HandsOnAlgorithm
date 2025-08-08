@@ -31,7 +31,7 @@ class DiffPM:
         tree_id = inputs[5]
 
         self.root = Node()
-        self.T = np.hstack((X, Y.reshape(-1, 1)))
+        self.T = self.get_sample_dataset(X, Y, tree_id) 
         self.feat_names = feat_names 
         self.d = d # d + 1 the depth of tree
         self.B = B # differential privacy budget
@@ -42,6 +42,16 @@ class DiffPM:
         self.Build_DiffPID3(self.root, self.T, self.d, self.e, self.feat_names.tolist())
 
         print('number of tree leaf: ', self.Leaf)
+    
+    def get_sample_dataset(self, X, Y, tree_id):
+        # 新增随机采样逻辑
+        n_samples = X.shape[0]
+        rng = np.random.RandomState(int(time.time()) + tree_id)
+        indices = rng.choice(n_samples, size=n_samples, replace=True)  # 有放回抽样
+        X_sampled = X[indices]
+        Y_sampled = Y[indices]
+
+        return np.hstack((X_sampled, Y_sampled.reshape(-1, 1)))
 
     def get_max_A(self, X):
         # 遍历每一列
@@ -240,9 +250,19 @@ class DiffPM:
                 child_index = node.split[feature_value]
                 node = node.child[child_index]
             else:
-                # 如果特征值不在分割条件中，可以根据需求进行处理，这里简单返回 None
-                return None
-        return node.label
+                # 最近邻处理
+                known_values = list(node.split.keys())
+                # 计算特征值距离（数值型特征）
+                distances = [abs(feature_value - v) for v in known_values]
+                # 或使用海明距离（类别型特征）
+                # distances = [0 if feature_value == v else 1 for v in known_values]
+            
+                # 选择距离最小的分支
+                min_index = np.argmin(distances)
+                nearest_value = known_values[min_index]
+                child_index = node.split[nearest_value]
+                node = node.child[child_index]
+        return 'DiffPM', node.label
 
     # 计算在样本X，标签Y上的准确率
     def accuracy(self, X, Y, feat_names):
