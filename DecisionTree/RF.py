@@ -64,6 +64,9 @@ rf = RandomForestClassifier(
 # 训练模型
 rf.fit(X_train_processed, y_train)
 
+# 初始化叶子节点计数器
+leaf_counts = []
+
 # 可视化每棵树（使用matplotlib替代graphviz）
 for i, tree_in_forest in enumerate(rf.estimators_):
     plt.figure(figsize=(20, 10))
@@ -83,6 +86,19 @@ for i, tree_in_forest in enumerate(rf.estimators_):
     plt.savefig(f'picture/tree_{i+1}.png', dpi=300, bbox_inches='tight')
     plt.close()
     print(f"已保存树 {i+1} 的可视化图像: trees/tree_{i+1}.png")
+
+    # 计算并记录叶子节点数
+    n_leaves = tree_in_forest.tree_.n_leaves
+    leaf_counts.append(n_leaves)
+    print(f"树 {i+1} 的叶子节点数: {n_leaves}")
+
+# 打印叶子节点统计信息
+print("\n===== 叶子节点统计 =====")
+print(f"总树数: {len(leaf_counts)}")
+print(f"叶子节点总数: {sum(leaf_counts)}")
+print(f"平均每棵树叶子节点数: {sum(leaf_counts)/len(leaf_counts):.2f}")
+print(f"最大叶子节点数: {max(leaf_counts)}")
+print(f"最小叶子节点数: {min(leaf_counts)}")
 
 # 预测与评估
 y_pred = rf.predict(X_test_processed)
