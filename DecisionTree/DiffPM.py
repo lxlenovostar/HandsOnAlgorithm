@@ -182,7 +182,7 @@ class DiffPM:
             Y_p = Y[X[:, feat] == val]
             HXY += len(Y_p) / len(Y) * self.entropy(Y_p)
 
-        return (HX - HXY)*100
+        return (HX - HXY)
 
     def exponential_mechanism(self, T, attributes, epsilon, continuos_split_point, sensitivity=1):
         """
@@ -360,7 +360,17 @@ class DiffPM:
         #if t == -1 or d == 0 :
         # TODO need update
         #if len(feat_names) == 0 or d == 0 or self.get_heuristic_parameters(Nt, t, len(np.unique(T[:, -1:])), e):
-        if len(feat_names) == 0 or d == 0 or len(np.unique(T[:, -1:])) == 1:
+
+        #if len(feat_names) == 0 or d == 0 or len(np.unique(T[:, -1:])) == 1:
+        #min_samples_leaf = max(self.limit_sample, int(0.01 * len(T)))
+        #if len(feat_names) == 0 or d == 0 or len(np.unique(T[:, -1:])) == 1 or Nt < (min_samples_leaf * 2):
+        #if len(feat_names) == 0 or d == 0 or len(np.unique(T[:, -1:])) == 1:
+        #if len(feat_names) == 0 or d == 0 or len(np.unique(T[:, -1:])) == 1 or self.get_heuristic_parameters(Nt, t, len(np.unique(T[:, -1:])), e):
+        #min_samples_leaf = max(10, int(0.01 * len(T)))  # 至少5个样本
+        #min_samples_leaf = min(50, int(0.02 * len(T)))  # 至少5个样本
+        #if len(feat_names) == 0 or d == 0 or len(np.unique(T[:, -1:])) == 1 or Nt <= min_samples_leaf:
+        #if len(feat_names) == 0 or d == 0 or len(np.unique(T[:, -1:])) == 1:
+        if len(feat_names) == 0 or d == 0 or len(np.unique(T[:, -1:])) == 1 or Nt <= 50:
             # line 9 in Algorithm Differential Private ID3
             new_split_Y = self.partition_C(T[:, -1:])
 
@@ -386,11 +396,18 @@ class DiffPM:
         # step 9 
         continuous_status, continuous_feat = self.check_continuous_feat(random_candidate_feat_names)
         # step 10
+        old_e = e
         continuos_split_point = {}
         if continuous_status:
              cont_len = len(continuous_feat)
+             #print('what e1', e, ' cont_len ', cont_len)
              e = e / (cont_len + 1)
+             #e = 0.4*e / cont_len
+             #print('what e', e, ' cont_len ', cont_len)
              continuos_split_point = self.handle_continuous_feat(T, feat_names, continuous_feat, e)
+             #e = 0.6 * old_e
+        else:
+             e = old_e
 
         # step 11 
         random_New_split_A = self.exponential_mechanism(T, random_candidate_feat_names, e, continuos_split_point)
@@ -440,29 +457,6 @@ class DiffPM:
         else:
             print('something error')
 
-    def predict(self, x, feat_names):
-        node = self.root
-        while node.child:
-            index = feat_names.index(node.feat)
-            feature_value = x[index]
-            if feature_value in node.split:
-                child_index = node.split[feature_value]
-                node = node.child[child_index]
-            else:
-                # 最近邻处理
-                known_values = list(node.split.keys())
-                # 计算特征值距离（数值型特征）
-                distances = [abs(feature_value - v) for v in known_values]
-                # 或使用海明距离（类别型特征）
-                # distances = [0 if feature_value == v else 1 for v in known_values]
-            
-                # 选择距离最小的分支
-                min_index = np.argmin(distances)
-                nearest_value = known_values[min_index]
-                child_index = node.split[nearest_value]
-                node = node.child[child_index]
-        return 'DiffPM', node.label
-    
     def predict(self, x, feat_names):
         """
         支持连续和离散属性

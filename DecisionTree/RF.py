@@ -13,7 +13,9 @@ import os
 os.makedirs('trees', exist_ok=True)
 
 # 加载Adult数据集
-url = "data/adult/adult_100.data"
+url = "data/adult/adult.data"
+#url = "data/adult/adult_1000.data"
+#url = "data/adult/adult_100.data"
 columns = ['age', 'workclass', 'fnlwgt', 'education', 'education-num', 
            'marital-status', 'occupation', 'relationship', 'race', 'sex',
            'capital-gain', 'capital-loss', 'hours-per-week', 'native-country', 'income']
@@ -63,7 +65,7 @@ feature_names = numerical_cols + categorical_cols
 # 随机森林模型
 rf = RandomForestClassifier(
     n_estimators=25,        # 树的数量
-    max_depth=5,           # 树的最大深度
+    max_depth=5,            # 树的最大深度
     min_samples_split=2,    # 允许更细分裂
     min_samples_leaf=1,     # 允许单样本叶子
     max_features=0.8,       # 增加特征使用比例
@@ -115,9 +117,9 @@ for i, tree_in_forest in enumerate(rf.estimators_):
             cont_splits[feat_name].append(split_point)
     
     # 打印当前树的连续属性分裂点
-    print(f"\n树 {i+1} 的连续属性分裂点:")
-    for feat, splits in cont_splits.items():
-        print(f"  - {feat}: {splits}")
+    #print(f"\n树 {i+1} 的连续属性分裂点:")
+    #for feat, splits in cont_splits.items():
+    #    print(f"  - {feat}: {splits}")
     
     # ==== 新增：反标准化分裂点 ====
     scaler = preprocessor.named_transformers_['num']
@@ -134,16 +136,15 @@ for i, tree_in_forest in enumerate(rf.estimators_):
         
         original_splits[feat] = original_values
     
-    print(f"\n树 {i+1} 的原始连续属性分裂点:")
-    for feat, splits in original_splits.items():
-        print(f"  - {feat}: {[round(x, 2) for x in splits]}")
+    #print(f"\n树 {i+1} 的原始连续属性分裂点:")
+    #for feat, splits in original_splits.items():
+    #    print(f"  - {feat}: {[round(x, 2) for x in splits]}")
     
 
 # 初始化叶子节点计数器
 leaf_counts = []
 
 # 可视化每棵树
-"""
 for i, tree_in_forest in enumerate(rf.estimators_):
     plt.figure(figsize=(20, 10))
     
@@ -159,7 +160,7 @@ for i, tree_in_forest in enumerate(rf.estimators_):
     )
     
     # 保存图像
-    plt.savefig(f'picture/tree_{i+1}.png', dpi=300, bbox_inches='tight')
+    #plt.savefig(f'picture/tree_{i+1}.png', dpi=300, bbox_inches='tight')
     plt.close()
     print(f"已保存树 {i+1} 的可视化图像: trees/tree_{i+1}.png")
 
@@ -167,7 +168,6 @@ for i, tree_in_forest in enumerate(rf.estimators_):
     n_leaves = tree_in_forest.tree_.n_leaves
     leaf_counts.append(n_leaves)
     print(f"树 {i+1} 的叶子节点数: {n_leaves}")
-"""
 
 # 打印叶子节点统计信息
 print("\n===== 叶子节点统计 =====")
@@ -192,6 +192,6 @@ print(f"测试集准确率: {test_accuracy:.4f}")
 importances = rf.feature_importances_
 indices = np.argsort(importances)[::-1]
 
-print("\n===== 特征重要性排序 =====")
-for f in range(X_train_processed.shape[1]):
-    print(f"{feature_names[indices[f]]}: {importances[indices[f]]:.4f}")
+#print("\n===== 特征重要性排序 =====")
+#for f in range(X_train_processed.shape[1]):
+#    print(f"{feature_names[indices[f]]}: {importances[indices[f]]:.4f}")

@@ -33,8 +33,9 @@ data_clean['income'] = data_clean['income'].apply(
 )
 
 # 3. 连续特征分箱处理（10类）
-continuous_features = ['age', 'fnlwgt', 'education_num', 
-                       'capital_gain', 'capital_loss', 'hours_per_week']
+continuous_features = [] 
+#continuous_features = ['age', 'fnlwgt', 'education_num', 
+                      # 'capital_gain', 'capital_loss', 'hours_per_week']
 
 # 创建分箱器
 discretizer = KBinsDiscretizer(
@@ -45,9 +46,9 @@ discretizer = KBinsDiscretizer(
 
 # 应用分箱
 data_discrete = data_clean.copy()
-data_discrete[continuous_features] = discretizer.fit_transform(
-    data_clean[continuous_features]
-).astype(int)
+#data_discrete[continuous_features] = discretizer.fit_transform(
+#    data_clean[continuous_features]
+#).astype(int)
 
 # 4. 离散特征整数编码
 categorical_features = ['workclass', 'education', 'marital_status',
