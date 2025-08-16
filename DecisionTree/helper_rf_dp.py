@@ -41,6 +41,32 @@ def process():
         #    print(f'{spt:.4f}')
 
     """
+    # Mushroom数据集属性类型定义
+    feat_status = {
+        # 离散属性 (22个)
+        'cap.shape': 'categorical',        # 菌盖形状: bell, conical, convex, flat, knobbed, sunken
+        'cap.surface': 'categorical',      # 菌盖表面: fibrous, grooves, scaly, smooth
+        'cap.color': 'categorical',        # 菌盖颜色: brown, buff, cinnamon, gray, green, pink, purple, red, white, yellow
+        'bruises': 'categorical',          # 擦伤: bruises, no
+        'odor': 'categorical',             # 气味: almond, anise, creosote, fishy, foul, musty, none, pungent, spicy
+        'gill.attachment': 'categorical', # 菌褶附着: attached, descending, free, notched
+        'gill.spacing': 'categorical',     # 菌褶间距: close, crowded, distant
+        'gill.size': 'categorical',        # 菌褶大小: broad, narrow
+        'gill.color': 'categorical',       # 菌褶颜色: black, brown, buff, chocolate, gray, green, orange, pink, purple, red, white, yellow
+        'stalk.shape': 'categorical',      # 菌柄形状: enlarging, tapering
+        'stalk.root': 'categorical',       # 菌柄根部: bulbous, club, cup, equal, rhizomorphs, rooted, missing
+        'stalk.surface.above.ring': 'categorical', # 菌环上方表面: fibrous, scaly, silky, smooth
+        'stalk.surface.below.ring': 'categorical', # 菌环下方表面: fibrous, scaly, silky, smooth
+        'stalk.color.above.ring': 'categorical',   # 菌环上方颜色: brown, buff, cinnamon, gray, orange, pink, red, white, yellow
+        'stalk.color.below.ring': 'categorical',   # 菌环下方颜色: brown, buff, cinnamon, gray, orange, pink, red, white, yellow
+        'veil.type': 'categorical',        # 菌幕类型: partial, universal
+        'veil.color': 'categorical',       # 菌幕颜色: brown, orange, white, yellow
+        'ring.number': 'categorical',      # 菌环数量: none, one, two
+        'ring.type': 'categorical',       # 菌环类型: cobwebby, evanescent, flaring, large, none, pendant, sheathing, zone
+        'spore.print.color': 'categorical', # 孢子印颜色: black, brown, buff, chocolate, green, orange, purple, white, yellow
+        'population': 'categorical',      # 种群: abundant, clustered, numerous, scattered, several, solitary
+        'habitat': 'categorical',         # 栖息地: grasses, leaves, meadows, paths, urban, waste, woods
+    }
 
     feat_ranges = {}
     # 只有有限取值的离散特征
@@ -73,4 +99,4 @@ def process():
     print('测试集大小：', len(test_x))
     print('特征数：', train_x.shape[1])
 
-    return train_x, train_y, test_x, test_y, feat_ranges, feat_names
+    return train_x, train_y, test_x, test_y, feat_ranges, feat_names, feat_status

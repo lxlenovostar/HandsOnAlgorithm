@@ -9,7 +9,7 @@ from typing import List, Union
 
 class Node:
     def __init__(self):
-        # 内部结点的feat表示用来分类的特征编号，其数字与数据中的顺序对应
+        # 内部结点的feat表示用来分类的特征
         self.feat = '' 
         # 分类值列表，表示按照其中的值向子结点分类, key is value, value is index of self.child
         self.split = {} 
@@ -17,6 +17,15 @@ class Node:
         self.child = []
         # 叶结点的label表示该结点对应的分类结果
         self.label = None
+  
+        # 逻辑回归扩展属性
+        self.parent = None
+        self.logistic_model = None   # sklearn模型对象
+        self.feature_indices = []    # store feature index 
+        self.is_logistic = False     # 节点类型标记
+        #self.log_loss = None        # 训练损失
+        #self.samples = 0            # 节点样本数
+
 
 class DiffPRFM:
     # line 2 in Algorithm 2 Differential private ID3
@@ -26,22 +35,57 @@ class DiffPRFM:
         X = inputs[0]
         Y = inputs[1]
         feat_names = inputs[2]
-        d = inputs[3]
-        B = inputs[4]
-        tree_id = inputs[5]
+        feat_status = inputs[3]
+        d = inputs[4]
+        B = inputs[5]
+        self.tree_id = inputs[6]
 
         self.root = Node()
-        self.T = np.hstack((X, Y.reshape(-1, 1)))
+        self.T = self.get_sample_dataset(X, Y, self.tree_id) 
+        #self.T = np.hstack((X, Y.reshape(-1, 1)))
         self.feat_names = feat_names 
+        self.feat_status = feat_status 
         self.d = d # d + 1 the depth of tree
-        self.B = B # differential privacy budget
-        self.e = self.B / (2*(d + 1))
+        #self.B = B # differential privacy budget
+        #self.e = self.B / (2*(d + 1))
+        self.Leaf_B = 0.6*B
+        self.B = 0.4*B # differential privacy budget
+        self.e = self.B / (2*d)
         self.Leaf = 0 # 记录叶结点个数
+        self.log_Leaf = 0
+
+        self.log_feat_names = feat_names
+        #self.log_T = self.T.copy()
+        self.log_feat_index = self.get_feat_index()
+        # 基于特征数量的动态阈值
+        #self.regression_threshold = max(50, int(len(feat_names) * 3))
+        self.regression_threshold = min(self.T.shape[0]/200, int(len(feat_names) * 3))
         
-        np.random.seed(int(time.time()) + tree_id)
+        np.random.seed(self.tree_id)
+        #np.random.seed(int(time.time()) + self.tree_id)
         self.Build_DiffPID3(self.root, self.T, self.d, self.e, self.feat_names.tolist())
 
         print('number of tree leaf: ', self.Leaf)
+        print('number of tree log_leaf: ', self.log_Leaf)
+    
+    def get_sample_dataset(self, X, Y, tree_id):
+        # 新增随机采样逻辑
+        #n_samples = X.shape[0]
+        n_samples = int(X.shape[0]/20)
+        rng = np.random.RandomState(int(time.time()) + tree_id)
+        #indices = rng.choice(n_samples, size=n_samples, replace=True)  # 有放回抽样
+        indices = rng.choice(n_samples, size=n_samples, replace=False)  # 有放回抽样
+        X_sampled = X[indices]
+        Y_sampled = Y[indices]
+
+        return np.hstack((X_sampled, Y_sampled.reshape(-1, 1)))
+    
+    def get_feat_index(self):
+        index_map = {}
+        for idx, s in enumerate(self.log_feat_names):
+            if s not in index_map:  # 只记录首次出现位置
+                index_map[s] = idx
+        return index_map
 
     def get_max_A(self, X):
         # 遍历每一列
@@ -61,9 +105,14 @@ class DiffPRFM:
         sensitivity = 1
         epsilon = e
         scale = sensitivity / epsilon
-        noise = np.random.laplace(0, scale)
 
+        noise = np.random.laplace(0, scale)
         return noise
+
+        #bound = 3 * scale  # 3σ裁剪（覆盖99.7%分布）
+        #bound = scale  # 3σ裁剪（覆盖99.7%分布）
+        #print('what noise', noise, bound)
+        #return np.clip(noise, -bound, bound)
     
     def get_heuristic_parameters(self, Nt, t, len_C, e):
         # line 9 in Algorithm Differential Private ID3
@@ -137,7 +186,8 @@ class DiffPRFM:
             Y_p = Y[X[:, feat] == val]
             HXY += len(Y_p) / len(Y) * self.entropy(Y_p)
 
-        return (HX - HXY)*100
+        #return (HX - HXY)*100
+        return (HX - HXY)
 
     def exponential_mechanism(self, T, attributes, epsilon, sensitivity=1):
         """
@@ -162,13 +212,149 @@ class DiffPRFM:
 
         return chosen_index
 
-    def select_random_features(self, feat_names):
+    def select_random_features(self, feat_names, feat_status):
         """
         步骤8实现：从属性集中随机选择f个属性
         """
-        effective_random = int(np.sqrt(len(feat_names)))
+        #effective_random = int(np.sqrt(len(feat_names)))
+        #return random.sample(feat_names, effective_random)
+
+        # 筛选出所有离散型属性
+        categorical_feats = [feat for feat in feat_names if feat_status.get(feat) == 'categorical']
+    
+        # 计算选择数量（离散属性数量的平方根）
+        if categorical_feats:
+            effective_random = max(1, int(np.sqrt(len(categorical_feats))))
+            return random.sample(categorical_feats, effective_random)
+        else:
+            # 如果没有离散属性，返回空列表
+            return []
+
+    def get_path_features(self, node):
+        """提取从根节点到当前叶节点的路径特征索引"""
+        path_features = []
+
+        current = node
+        while current.parent:  # 假设节点添加了parent属性
+            if current.feat not in path_features:
+                if current.feat != '':
+                    path_features.append(current.feat)
+            current = current.parent
         
-        return random.sample(feat_names, effective_random)
+        #feats =  [self.log_feat_index[f] for f in path_features]
+        #return sorted(feats) 
+        return path_features
+
+    def get_train_feature(self, feat_names, used_features):
+        del_feats = []
+        for feat in used_features:
+            if self.feat_status[feat] == 'continuous':
+                del_feats.append(feat)
+        
+        filtered_features = [
+            feat for feat in feat_names 
+            if feat not in del_feats
+        ]
+    
+        return filtered_features
+
+
+    def _train_logistic_leaf(self, node, epsilon, samples, T, feat_names):
+        from sklearn.linear_model import LogisticRegression
+    
+        # 提取数据和路径特征
+        """
+        X = self.log_T[:, :-1].astype(float)
+        y = self.log_T[:, -1].astype(int)
+        path_features = self.get_path_features(node)
+        X_selected = X[:, path_features]
+        node.feature_indices = path_features
+        """
+        
+        used_features = self.get_path_features(node)
+        need_features = self.get_train_feature(feat_names, used_features)
+
+        X = T[:, :-1].astype(float)
+        y = T[:, -1].astype(int)
+        #path_features = sorted([self.log_feat_index[f] for f in feat_names]) 
+        path_features = sorted([self.log_feat_index[f] for f in need_features]) 
+        X_selected = X[:, ]
+        node.feature_indices = path_features
+    
+        # 训练逻辑回归模型
+        model = LogisticRegression(
+            penalty='l2',
+            solver='lbfgs',
+            max_iter=1500,
+            #max_iter=1000,
+            #class_weight='balanced', # 处理类别不平衡
+            random_state=42
+        )
+
+        model.fit(X_selected, y)
+    
+        # 添加差分隐私保护
+        # TODO need update
+        self._add_parameter_noise(model, samples, epsilon)
+    
+        # 存储模型
+        node.logistic_model = model
+    
+    def _add_parameter_noise(self, model, n_samples, total_epsilon):
+        """优化后的参数加噪方案"""
+        # 1. 隐私预算分配
+        coef_budget = total_epsilon * 0.7  # 70%给权重
+        intercept_budget = total_epsilon * 0.3  # 30%给截距
+    
+        # 2. 权重系数加噪
+        d = len(model.coef_[0])  # 特征数量
+        for i in range(d):
+            sensitivity = 1.0 / n_samples
+            scale = sensitivity / coef_budget
+            noise = np.random.laplace(0, scale)
+            model.coef_[0][i] += noise
+    
+        # 3. 截距项加噪
+        sensitivity_intercept = 1.0 / n_samples
+        scale_intercept = sensitivity_intercept / intercept_budget
+        noise_intercept = np.random.laplace(0, scale_intercept)
+        model.intercept_ += noise_intercept
+    
+        # 4. 计算实际隐私消耗
+        actual_epsilon = coef_budget + intercept_budget
+        return actual_epsilon
+
+    def predict(self, x, feat_names):
+        node = self.root
+        while node.child:
+            index = feat_names.index(node.feat)
+            feature_value = x[index]
+            if feature_value in node.split:
+                child_index = node.split[feature_value]
+                node = node.child[child_index]
+            else:
+                # 最近邻处理
+                known_values = list(node.split.keys())
+                # 计算特征值距离（数值型特征）
+                distances = [abs(feature_value - v) for v in known_values]
+                # 或使用海明距离（类别型特征）
+                # distances = [0 if feature_value == v else 1 for v in known_values]
+            
+                # 选择距离最小的分支
+                min_index = np.argmin(distances)
+                nearest_value = known_values[min_index]
+                child_index = node.split[nearest_value]
+                node = node.child[child_index]
+
+        # 叶子节点预测
+        if node.is_logistic and node.logistic_model:
+            # 提取路径特征值
+            x_path = [x[i] for i in node.feature_indices]
+            ret = node.logistic_model.predict([x_path])[0]
+            return 'a', ret
+        else:
+            return 'b', node.label  # 多数投票结果
+
 
     # 用ID3算法递归分裂结点，构造决策树
     def Build_DiffPID3(self, node, T, d, e, feat_names):
@@ -178,10 +364,32 @@ class DiffPRFM:
 
         # step 7 
         #if t == -1 or d == 0 or self.get_heuristic_parameters(Nt, t, len(np.unique(T[:, -1:])), e):
-        if t == -1 or d == 0 :
+        #if t == -1 or d == 0:
+        if t == -1 or d == 0:
+            e = self.Leaf_B
+
             # line 9 in Algorithm Differential Private ID3
             new_split_Y = self.partition_C(T[:, -1:])
 
+            # 自适应决策机制
+            num_label = len(np.unique(T[:, -1]))
+
+            #if num_label == 1:
+            #    print('what0 Nt: ', Nt, ' t ', t, ' d ', d, 'T.shape[0]', T.shape[0], ' num_label: ', num_label)
+
+            # 逻辑回归需要至少两个类别才能训练分类模型
+            #if len(T) >= self.regression_threshold and num_label >= 2:
+            if Nt >= self.regression_threshold and num_label >= 2:
+                #print('what Nt', Nt, len(T), self.regression_threshold)
+                #self._train_logistic_leaf(node, e, len(T), T, feat_names)  # 逻辑回归
+                self._train_logistic_leaf(node, e, Nt, T, feat_names)  # 逻辑回归
+                node.is_logistic = True
+                self.Leaf += 1
+                self.log_Leaf += 1
+                node.label = -2 
+                #print('what1 Nt: ', Nt, ' t ', t, ' d ', d, 'T.shape[0]', T.shape[0], ' threshold', self.regression_threshold)
+                return
+        
             new_class = -1
             new_class_count = 0
             # line 10, 11 in Algorithm Differential Private ID3
@@ -191,14 +399,16 @@ class DiffPRFM:
                     new_class = value
                     new_class_count = new_count
             
+            #print('what2 Nt: ', Nt, ' t ', t, ' d ', d, ' new_class ', new_class, 'T.shape[0]', T.shape[0])
             node.label = new_class
+            node.is_logistic = False 
             self.Leaf += 1
             return
         
         # TODO we support step 10 later.
 
         # step 8
-        random_candidate_feat_names = self.select_random_features(feat_names)
+        random_candidate_feat_names = self.select_random_features(feat_names, self.feat_status)
         #print(f"random candidate feat: {random_candidate_feat_names}")
 
         # step 11 
@@ -224,25 +434,13 @@ class DiffPRFM:
             for value, sub_arr in New_T_dict.items():
                 #print(f"当第 {target_col_index} 列取值为 {value} 时，切分得到的子数组形状为: {sub_arr.shape}")
                 new_node = Node()
+                new_node.parent = node
                 self.Build_DiffPID3(new_node, np.delete(sub_arr, New_split_A, axis=1), d-1, e, new_feat_names)
                 node.split[value] = index 
                 node.child.append(new_node)
                 index += 1
         else:
             print('something error')
-
-    def predict(self, x, feat_names):
-        node = self.root
-        while node.child:
-            index = feat_names.index(node.feat)
-            feature_value = x[index]
-            if feature_value in node.split:
-                child_index = node.split[feature_value]
-                node = node.child[child_index]
-            else:
-                # 如果特征值不在分割条件中，可以根据需求进行处理，这里简单返回 None
-                return None
-        return node.label
 
     # 计算在样本X，标签Y上的准确率
     def accuracy(self, X, Y, feat_names):
