@@ -5,6 +5,7 @@ import time
 import random
 from graphviz import Digraph
 from typing import List, Union
+from scipy.stats import truncnorm
 
 
 class Node:
@@ -43,8 +44,10 @@ class DiffPM:
         self.B = B # differential privacy budget
         self.e = self.B / (2*(d + 1))
         self.Leaf = 0 # 记录叶结点个数
+
+        entropy_seed = int(time.time() * 1000) + tree_id * 10000
+        random.seed(entropy_seed)
         
-        np.random.seed(int(time.time()) + tree_id)
         self.Build_DiffPID3(self.root, self.T, self.d, self.e, self.feat_names.tolist())
 
         print('number of tree leaf: ', self.Leaf)
@@ -74,12 +77,11 @@ class DiffPM:
     def get_Noisy(self, e):
         # 添加拉普拉斯噪声
         # 这里假设敏感度为 1，隐私预算为 e 
-        sensitivity = 1
-        epsilon = e
-        scale = sensitivity / epsilon
-        noise = np.random.laplace(0, scale)
-
-        return noise
+        truncation = 3.0
+        scale = 1 / e
+        a, b = -truncation, truncation
+        tn = truncnorm((a - 0)/scale, (b - 0)/scale, loc=0, scale=scale)
+        return tn.rvs()
     
     def get_heuristic_parameters(self, Nt, t, len_C, e):
         # line 9 in Algorithm Differential Private ID3
@@ -194,7 +196,6 @@ class DiffPM:
         X = T[:, :-1]
         Y = T[:, -1]
 
-        #scores = [self.info_gain(X, Y, attr_index) for attr_index in range(len(attributes))]
         scores = []
         for attr_index in range(len(attributes)):
             if attributes[attr_index] in continuos_split_point:
@@ -309,7 +310,6 @@ class DiffPM:
     
         # 4. 正常流程：计算加权概率
         exp_values = np.exp(epsilon/(2*delta_q) * np.array(q_scores)) * np.array(interval_sizes)
-
         probabilities = exp_values / np.sum(exp_values)
     
         # 5. 按概率选择分裂点
@@ -353,7 +353,6 @@ class DiffPM:
         t = self.get_max_A(T[:, :-1])
         Nt =  max(T.shape[0] + self.get_Noisy(e), 0)
         #Nt = max(len(np.unique(T[:, -1:])) + self.get_Noisy(e), 0)
-
         # TODO step 6
         # step 7 
         #if t == -1 or d == 0 or self.get_heuristic_parameters(Nt, t, len(np.unique(T[:, -1:])), e):
@@ -370,15 +369,18 @@ class DiffPM:
         #min_samples_leaf = min(50, int(0.02 * len(T)))  # 至少5个样本
         #if len(feat_names) == 0 or d == 0 or len(np.unique(T[:, -1:])) == 1 or Nt <= min_samples_leaf:
         #if len(feat_names) == 0 or d == 0 or len(np.unique(T[:, -1:])) == 1:
-        if len(feat_names) == 0 or d == 0 or len(np.unique(T[:, -1:])) == 1 or Nt <= 50:
+        #if len(feat_names) == 0 or d == 0 or len(np.unique(T[:, -1:])) == 1 or Nt <= 50:
+        if len(feat_names) == 0 or d == 0 or len(np.unique(T[:, -1:])) == 1:
+            #print('what Nt ', Nt, ' T.shape[0] ', T.shape[0], ' e ', e, ' noise ', self.get_Noisy(e))
             # line 9 in Algorithm Differential Private ID3
             new_split_Y = self.partition_C(T[:, -1:])
 
             new_class = -1
             new_class_count = 0
+            noise  = self.get_Noisy(e)
             # line 10, 11 in Algorithm Differential Private ID3
             for value, sub_arr in new_split_Y.items():
-                new_count = max(len(sub_arr) + self.get_Noisy(e), 0)
+                new_count = max(len(sub_arr) + noise, 0)
                 if new_count >= new_class_count:
                     new_class = value
                     new_class_count = new_count
@@ -396,18 +398,11 @@ class DiffPM:
         # step 9 
         continuous_status, continuous_feat = self.check_continuous_feat(random_candidate_feat_names)
         # step 10
-        old_e = e
         continuos_split_point = {}
         if continuous_status:
              cont_len = len(continuous_feat)
-             #print('what e1', e, ' cont_len ', cont_len)
              e = e / (cont_len + 1)
-             #e = 0.4*e / cont_len
-             #print('what e', e, ' cont_len ', cont_len)
              continuos_split_point = self.handle_continuous_feat(T, feat_names, continuous_feat, e)
-             #e = 0.6 * old_e
-        else:
-             e = old_e
 
         # step 11 
         random_New_split_A = self.exponential_mechanism(T, random_candidate_feat_names, e, continuos_split_point)
@@ -448,9 +443,9 @@ class DiffPM:
                 new_node = Node()
                 # 连续属性：强制二元分裂,保留连续属性  ​离散属性：多元分裂
                 if status_cont:
-                    self.Build_DiffPID3(new_node, sub_arr, d-1, e, new_feat_names)
+                    self.Build_DiffPID3(new_node, sub_arr, d-1, self.e, new_feat_names)
                 else:
-                    self.Build_DiffPID3(new_node, np.delete(sub_arr, New_split_A, axis=1), d-1, e, new_feat_names)
+                    self.Build_DiffPID3(new_node, np.delete(sub_arr, New_split_A, axis=1), d-1, self.e, new_feat_names)
                 node.split[value] = index 
                 node.child.append(new_node)
                 index += 1
