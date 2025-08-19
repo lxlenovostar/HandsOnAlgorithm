@@ -83,13 +83,6 @@ class DiffPM:
         tn = truncnorm((a - 0)/scale, (b - 0)/scale, loc=0, scale=scale)
         return tn.rvs()
     
-    def get_heuristic_parameters(self, Nt, t, len_C, e):
-        # line 9 in Algorithm Differential Private ID3
-        if Nt / t*len_C < (2 ** 0.5) / e:
-            return True
-        else:
-            return False
-    
     def partition_C(self, Y):
         # 找到数组中的唯一值
         unique_values = np.unique(Y)
@@ -495,9 +488,9 @@ class DiffPM:
                     # 最近邻处理
                     known_values = list(node.split.keys())
                     # 计算特征值距离（数值型特征）
-                    distances = [abs(feature_value - v) for v in known_values]
+                    #distances = [abs(feature_value - v) for v in known_values]
                     # 或使用海明距离（类别型特征）
-                    # distances = [0 if feature_value == v else 1 for v in known_values]
+                    distances = [0 if feature_value == v else 1 for v in known_values]
             
                     # 选择距离最小的分支
                     min_index = np.argmin(distances)
