@@ -20,7 +20,7 @@ if __name__ == '__main__':
     #RF = RandomForest(train_x, train_y, feat_names, 2, 0.05, 25)
     #RF = RandomForest(train_x, train_y, feat_names, feat_status, 5, 0.5, 25)
     #RF = RandomForest(train_x, train_y, feat_names, feat_status, 5, 0.5, 25)
-    RF = RandomForest(train_x, train_y, feat_names, feat_status, 4, 0.5, 25)
+    RF = RandomForest(train_x, train_y, feat_names, feat_status, 5, 0.5, 25)
     #RF = RandomForest(train_x, train_y, feat_names, feat_status, 5, 100.5, 25)
     #RF = RandomForest(train_x, train_y, feat_names, feat_status, 5, 0.5, 1)
 

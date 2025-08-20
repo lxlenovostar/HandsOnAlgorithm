@@ -26,7 +26,7 @@ if __name__ == '__main__':
     #RF = RandomForest(train_x, train_y, feat_names, feat_status, 5, 0.5, 25)
     #RF = RandomForest(train_x, train_y, feat_names, feat_status, 5, 0.5, 25)
     #RF = RandomForest(train_x, train_y, feat_names, feat_status, 5, 100, 25)
-    RF = RandomForest(train_x, train_y, feat_names, feat_status, 5, 0.5, 25)
+    RF = RandomForest(train_x, train_y, feat_names, feat_status, 3, 0.5, 25)
     #RF = RandomForest(train_x, train_y, feat_names, 3, 0.25, 10)
     #DPDT = DiffPID3(train_x, train_y, feat_names, 5, 0.75)
     #DPDT = DiffPID3(train_x, train_y, feat_names, 5, 0.25)

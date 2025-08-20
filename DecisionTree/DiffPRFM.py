@@ -5,6 +5,7 @@ import time
 import random
 from graphviz import Digraph
 from typing import List, Union
+from scipy.stats import truncnorm
 
 
 class Node:
@@ -46,11 +47,13 @@ class DiffPRFM:
         self.feat_names = feat_names 
         self.feat_status = feat_status 
         self.d = d # d + 1 the depth of tree
-        #self.B = B # differential privacy budget
+        self.B = B # differential privacy budget
         #self.e = self.B / (2*(d + 1))
-        self.Leaf_B = 0.6*B
+
         self.B = 0.4*B # differential privacy budget
         self.e = self.B / (2*d)
+        self.Leaf_e = 0.6*B
+
         self.Leaf = 0 # 记录叶结点个数
         self.log_Leaf = 0
 
@@ -59,10 +62,11 @@ class DiffPRFM:
         self.log_feat_index = self.get_feat_index()
         # 基于特征数量的动态阈值
         #self.regression_threshold = max(50, int(len(feat_names) * 3))
-        self.regression_threshold = min(self.T.shape[0]/200, int(len(feat_names) * 3))
+        #self.regression_threshold = min(self.T.shape[0]/100, int(len(feat_names) * 3))
+        self.regression_threshold = min(self.T.shape[0]/100, int(len(feat_names) * 3))
         
-        np.random.seed(self.tree_id)
-        #np.random.seed(int(time.time()) + self.tree_id)
+        #np.random.seed(self.tree_id)
+        np.random.seed(int(time.time()) + self.tree_id)
         self.Build_DiffPID3(self.root, self.T, self.d, self.e, self.feat_names.tolist())
 
         print('number of tree leaf: ', self.Leaf)
@@ -73,8 +77,7 @@ class DiffPRFM:
         #n_samples = X.shape[0]
         n_samples = int(X.shape[0]/20)
         rng = np.random.RandomState(int(time.time()) + tree_id)
-        #indices = rng.choice(n_samples, size=n_samples, replace=True)  # 有放回抽样
-        indices = rng.choice(n_samples, size=n_samples, replace=False)  # 有放回抽样
+        indices = rng.choice(n_samples, size=n_samples, replace=True)  # 有放回抽样
         X_sampled = X[indices]
         Y_sampled = Y[indices]
 
@@ -99,20 +102,14 @@ class DiffPRFM:
                 max_A_len = unique_values_len
         return max_A_len
     
-    def get_Noisy(self, e):
+    def get_Noisy(self, e, sensitivity=1):
         # 添加拉普拉斯噪声
         # 这里假设敏感度为 1，隐私预算为 e 
-        sensitivity = 1
-        epsilon = e
-        scale = sensitivity / epsilon
-
-        noise = np.random.laplace(0, scale)
-        return noise
-
-        #bound = 3 * scale  # 3σ裁剪（覆盖99.7%分布）
-        #bound = scale  # 3σ裁剪（覆盖99.7%分布）
-        #print('what noise', noise, bound)
-        #return np.clip(noise, -bound, bound)
+        truncation = 3.0
+        scale = sensitivity / e
+        a, b = -truncation, truncation
+        tn = truncnorm((a - 0)/scale, (b - 0)/scale, loc=0, scale=scale)
+        return tn.rvs()
     
     def get_heuristic_parameters(self, Nt, t, len_C, e):
         # line 9 in Algorithm Differential Private ID3
@@ -274,10 +271,17 @@ class DiffPRFM:
         used_features = self.get_path_features(node)
         need_features = self.get_train_feature(feat_names, used_features)
 
+        """
         X = T[:, :-1].astype(float)
         y = T[:, -1].astype(int)
         #path_features = sorted([self.log_feat_index[f] for f in feat_names]) 
         path_features = sorted([self.log_feat_index[f] for f in need_features]) 
+        X_selected = X[:, ]
+        node.feature_indices = path_features
+        """
+        X = T[:, :-1].astype(float)
+        y = T[:, -1].astype(int)
+        path_features = sorted([self.log_feat_index[f] for f in feat_names]) 
         X_selected = X[:, ]
         node.feature_indices = path_features
     
@@ -286,15 +290,13 @@ class DiffPRFM:
             penalty='l2',
             solver='lbfgs',
             max_iter=1500,
-            #max_iter=1000,
-            #class_weight='balanced', # 处理类别不平衡
+            class_weight='balanced', # 处理类别不平衡
             random_state=42
         )
 
         model.fit(X_selected, y)
     
         # 添加差分隐私保护
-        # TODO need update
         self._add_parameter_noise(model, samples, epsilon)
     
         # 存储模型
@@ -303,27 +305,20 @@ class DiffPRFM:
     def _add_parameter_noise(self, model, n_samples, total_epsilon):
         """优化后的参数加噪方案"""
         # 1. 隐私预算分配
-        coef_budget = total_epsilon * 0.7  # 70%给权重
-        intercept_budget = total_epsilon * 0.3  # 30%给截距
-    
+        sensitivity = 1.0 / n_samples
+        noise = self.get_Noisy(total_epsilon, sensitivity)
+
         # 2. 权重系数加噪
         d = len(model.coef_[0])  # 特征数量
         for i in range(d):
-            sensitivity = 1.0 / n_samples
-            scale = sensitivity / coef_budget
-            noise = np.random.laplace(0, scale)
-            model.coef_[0][i] += noise
+            #noise = np.random.laplace(0, scale)
+            #model.coef_[0][i] += noise
+            model.coef_[0][i] += noise*0.7
     
         # 3. 截距项加噪
-        sensitivity_intercept = 1.0 / n_samples
-        scale_intercept = sensitivity_intercept / intercept_budget
-        noise_intercept = np.random.laplace(0, scale_intercept)
+        noise_intercept = noise*0.3 
         model.intercept_ += noise_intercept
     
-        # 4. 计算实际隐私消耗
-        actual_epsilon = coef_budget + intercept_budget
-        return actual_epsilon
-
     def predict(self, x, feat_names):
         node = self.root
         while node.child:
@@ -360,13 +355,16 @@ class DiffPRFM:
     def Build_DiffPID3(self, node, T, d, e, feat_names):
 
         t = self.get_max_A(T[:, :-1])
-        Nt =  max(T.shape[0] + self.get_Noisy(e), 0)
+        noise = self.get_Noisy(e)
+        Nt =  max(T.shape[0] + noise, 0)
 
         # step 7 
         #if t == -1 or d == 0 or self.get_heuristic_parameters(Nt, t, len(np.unique(T[:, -1:])), e):
         #if t == -1 or d == 0:
-        if t == -1 or d == 0:
-            e = self.Leaf_B
+        if t == -1 or d == 0 or len(np.unique(T[:, -1:])) == 1:
+            e = self.Leaf_e
+            noise = self.get_Noisy(e)
+            Nt =  max(T.shape[0] + noise, 0)
 
             # line 9 in Algorithm Differential Private ID3
             new_split_Y = self.partition_C(T[:, -1:])
@@ -374,14 +372,10 @@ class DiffPRFM:
             # 自适应决策机制
             num_label = len(np.unique(T[:, -1]))
 
-            #if num_label == 1:
-            #    print('what0 Nt: ', Nt, ' t ', t, ' d ', d, 'T.shape[0]', T.shape[0], ' num_label: ', num_label)
 
             # 逻辑回归需要至少两个类别才能训练分类模型
-            #if len(T) >= self.regression_threshold and num_label >= 2:
             if Nt >= self.regression_threshold and num_label >= 2:
                 #print('what Nt', Nt, len(T), self.regression_threshold)
-                #self._train_logistic_leaf(node, e, len(T), T, feat_names)  # 逻辑回归
                 self._train_logistic_leaf(node, e, Nt, T, feat_names)  # 逻辑回归
                 node.is_logistic = True
                 self.Leaf += 1
@@ -394,7 +388,7 @@ class DiffPRFM:
             new_class_count = 0
             # line 10, 11 in Algorithm Differential Private ID3
             for value, sub_arr in new_split_Y.items():
-                new_count = max(len(sub_arr) + self.get_Noisy(e), 0)
+                new_count = max(len(sub_arr) + noise, 0)
                 if new_count >= new_class_count:
                     new_class = value
                     new_class_count = new_count
